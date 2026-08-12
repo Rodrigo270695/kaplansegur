@@ -77,27 +77,25 @@ export function SuperAdminDashboard({
                                             query: { unit_id: unit.id },
                                         }).url
                                     }
-                                    className="group relative flex aspect-square flex-col justify-end overflow-hidden rounded-2xl border border-border/60 bg-brand-black shadow-sm transition-all hover:shadow-lg hover:ring-2 hover:ring-brand-gold/50"
+                                    className="group flex aspect-square flex-col overflow-hidden rounded-2xl border border-border/60 bg-white shadow-sm transition-all hover:shadow-lg hover:ring-2 hover:ring-brand-gold/50"
                                 >
-                                    {unit.photo_url ? (
-                                        <img
-                                            src={unit.photo_url}
-                                            alt={unit.name}
-                                            className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                        />
-                                    ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-brand-gold-soft dark:bg-brand-gold/10">
-                                            <Building2
-                                                className="size-12 text-brand-gold-accent dark:text-brand-gold"
-                                                strokeWidth={1.5}
+                                    <div className="flex flex-1 items-center justify-center overflow-hidden p-4">
+                                        {unit.photo_url ? (
+                                            <img
+                                                src={unit.photo_url}
+                                                alt={unit.name}
+                                                className="size-full object-contain transition-transform duration-300 group-hover:scale-105"
                                             />
-                                        </div>
-                                    )}
-                                    <div
-                                        aria-hidden
-                                        className="absolute inset-0 bg-linear-to-t from-black/80 via-black/10 to-transparent"
-                                    />
-                                    <span className="relative z-10 truncate p-3 text-sm font-semibold text-white">
+                                        ) : (
+                                            <div className="flex size-full items-center justify-center rounded-xl bg-brand-gold-soft">
+                                                <Building2
+                                                    className="size-12 text-brand-gold-accent"
+                                                    strokeWidth={1.5}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <span className="truncate border-t border-border/60 bg-brand-black px-3 py-2 text-center text-sm font-semibold text-white">
                                         {unit.name}
                                     </span>
                                 </Link>
@@ -109,7 +107,10 @@ export function SuperAdminDashboard({
 
             <div className="grid auto-rows-min gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {cards.map((stat) => (
-                    <Card key={stat.title} className="border-border/60 shadow-sm">
+                    <Card
+                        key={stat.title}
+                        className="border-border/60 shadow-sm"
+                    >
                         <CardHeader className="flex flex-row items-center justify-between pb-0">
                             <CardTitle className="text-sm font-medium text-muted-foreground">
                                 {stat.title}
