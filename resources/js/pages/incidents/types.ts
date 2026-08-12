@@ -64,6 +64,8 @@ export type IncidentFilters = {
     post_id: number | null;
     /** Filtro por unidad, solo disponible para superadmin. */
     unit_id: number | null;
+    /** Filtro por zonal, solo disponible para superadmin. */
+    zone_id: number | null;
 };
 
 /** Catálogo de motivos activos, para el select del formulario. */
@@ -72,16 +74,29 @@ export type ReasonCatalogEntry = {
     name: string;
 };
 
-/** Catálogo de puestos activos, para el filtro de superadmin. */
-export type PostCatalogEntry = {
+/** Puesto activo dentro de una combinación Unidad+Zonal concreta. */
+export type IncidentPostCatalogEntry = {
     id: number;
     name: string;
 };
 
-/** Catálogo de unidades activas, para el filtro de superadmin. */
-export type UnitCatalogEntry = {
+/** Zonal activa dentro de una Unidad, con sus Puestos anidados. */
+export type IncidentZoneCatalogEntry = {
     id: number;
     name: string;
+    posts: IncidentPostCatalogEntry[];
+};
+
+/**
+ * Catálogo de Unidades → Zonales → Puestos activos, para el filtro en
+ * cascada de superadmin: al elegir una Unidad se acotan las Zonales a
+ * las suyas, y al elegir también una Zonal se acotan los Puestos a
+ * esa combinación exacta.
+ */
+export type IncidentUnitCatalogEntry = {
+    id: number;
+    name: string;
+    zones: IncidentZoneCatalogEntry[];
 };
 
 /**

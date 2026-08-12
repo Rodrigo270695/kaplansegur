@@ -8,6 +8,7 @@ use App\Models\Incident;
 use App\Models\Post;
 use App\Models\Reason;
 use App\Models\Unit;
+use App\Models\UnitZone;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -87,18 +88,7 @@ class IncidentController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'posts_catalog' => $isSuperAdmin
-                ? Post::query()
-                    ->where('is_active', true)
-                    ->orderBy('name')
-                    ->get(['id', 'name'])
-                : [],
-            'units_catalog' => $isSuperAdmin
-                ? Unit::query()
-                    ->where('is_active', true)
-                    ->orderBy('name')
-                    ->get(['id', 'name'])
-                : [],
+            'units_catalog' => $isSuperAdmin ? $this->buildUnitsCatalog() : [],
             'unit' => $isSuperAdmin ? null : $this->resolveAgentUnit($user),
         ]);
     }
@@ -143,7 +133,7 @@ class IncidentController extends Controller
      * aplicados. La usan tanto `index()` (paginada) como `export()`
      * (completa), para no duplicar la lógica de alcance ni de filtros.
      *
-     * @return array{0: Builder<Incident>, 1: Builder<Incident>, 2: array{search: string, evidencia: string, desde: ?string, hasta: ?string, post_id: ?int, unit_id: ?int}}
+     * @return array{0: Builder<Incident>, 1: Builder<Incident>, 2: array{search: string, evidencia: string, desde: ?string, hasta: ?string, post_id: ?int, unit_id: ?int, zone_id: ?int}}
      */
     private function buildScopedQuery(Request $request, User $user, bool $isSuperAdmin): array
     {
@@ -166,6 +156,7 @@ class IncidentController extends Controller
 
         $postId = $isSuperAdmin ? $this->parsePostId($request) : null;
         $unitId = $isSuperAdmin ? $this->parseUnitId($request) : null;
+        $zoneId = $isSuperAdmin ? $this->parseZoneId($request) : null;
 
         $scopedQuery = Incident::query();
         if (! $isSuperAdmin) {
@@ -177,7 +168,8 @@ class IncidentController extends Controller
             ->tap(fn (Builder $q) => $this->applyEvidencia($q, $evidencia))
             ->tap(fn (Builder $q) => $this->applyDateRange($q, $desde, $hasta))
             ->tap(fn (Builder $q) => $this->applyPost($q, $postId))
-            ->tap(fn (Builder $q) => $this->applyUnit($q, $unitId));
+            ->tap(fn (Builder $q) => $this->applyUnit($q, $unitId))
+            ->tap(fn (Builder $q) => $this->applyZone($q, $zoneId));
 
         return [$scopedQuery, $query, [
             'search' => $search,
@@ -186,7 +178,48 @@ class IncidentController extends Controller
             'hasta' => $hasta,
             'post_id' => $postId,
             'unit_id' => $unitId,
+            'zone_id' => $zoneId,
         ]];
+    }
+
+    /**
+     * Catálogo de Unidades → Zonales → Puestos activos, para el filtro
+     * en cascada de superadmin: al elegir una Unidad se acotan las
+     * Zonales a las suyas, y al elegir también una Zonal se acotan los
+     * Puestos a esa combinación Unidad+Zonal exacta.
+     *
+     * @return array<int, array{id: int, name: string, zones: array<int, array{id: int, name: string, posts: array<int, array{id: int, name: string}>}>}>
+     */
+    private function buildUnitsCatalog(): array
+    {
+        return Unit::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->with(['unitZones' => fn ($q) => $q->where('is_active', true)
+                ->with([
+                    'zone',
+                    'posts' => fn ($p) => $p->where('is_active', true)->orderBy('name'),
+                ])])
+            ->get()
+            ->map(fn (Unit $unit) => [
+                'id' => $unit->id,
+                'name' => $unit->name,
+                'zones' => $unit->unitZones
+                    ->filter(fn (UnitZone $unitZone) => $unitZone->zone->is_active)
+                    ->sortBy(fn (UnitZone $unitZone) => $unitZone->zone->name)
+                    ->map(fn (UnitZone $unitZone) => [
+                        'id' => $unitZone->zone->id,
+                        'name' => $unitZone->zone->name,
+                        'posts' => $unitZone->posts->map(fn (Post $post) => [
+                            'id' => $post->id,
+                            'name' => $post->name,
+                        ])->values()->all(),
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -417,6 +450,27 @@ class IncidentController extends Controller
         );
     }
 
+    /**
+     * @param  Builder<Incident>  $query
+     */
+    private function applyZone(Builder $query, ?int $zoneId): void
+    {
+        if ($zoneId === null) {
+            return;
+        }
+
+        $query->whereHas(
+            'user',
+            fn (Builder $u) => $u->whereHas(
+                'post',
+                fn (Builder $p) => $p->whereHas(
+                    'unitZone',
+                    fn (Builder $uz) => $uz->where('zone_id', $zoneId),
+                ),
+            ),
+        );
+    }
+
     private function parseDate(string $value): ?string
     {
         if ($value === '' || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
@@ -438,5 +492,12 @@ class IncidentController extends Controller
         $unitId = $request->integer('unit_id', 0);
 
         return $unitId > 0 ? $unitId : null;
+    }
+
+    private function parseZoneId(Request $request): ?int
+    {
+        $zoneId = $request->integer('zone_id', 0);
+
+        return $zoneId > 0 ? $zoneId : null;
     }
 }

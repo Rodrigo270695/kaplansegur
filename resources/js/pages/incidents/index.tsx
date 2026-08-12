@@ -5,6 +5,7 @@ import {
     CalendarClock,
     FileSpreadsheet,
     Filter,
+    Layers,
     MapPin,
     MapPinned,
     Paperclip,
@@ -52,10 +53,11 @@ import type {
     IncidentAgentUnit,
     IncidentEvidenciaFilter,
     IncidentFilters,
+    IncidentPostCatalogEntry,
     IncidentStats,
-    PostCatalogEntry,
+    IncidentUnitCatalogEntry,
+    IncidentZoneCatalogEntry,
     ReasonCatalogEntry,
-    UnitCatalogEntry,
 } from './types';
 
 type IncidentsIndexProps = {
@@ -63,8 +65,7 @@ type IncidentsIndexProps = {
     filters: IncidentFilters;
     stats: IncidentStats;
     reasons_catalog: readonly ReasonCatalogEntry[];
-    posts_catalog: readonly PostCatalogEntry[];
-    units_catalog: readonly UnitCatalogEntry[];
+    units_catalog: readonly IncidentUnitCatalogEntry[];
     unit: IncidentAgentUnit | null;
 };
 
@@ -77,13 +78,14 @@ type ModalState =
 
 type IncidentFilterExtra = Pick<
     IncidentFilters,
-    'evidencia' | 'desde' | 'hasta' | 'post_id' | 'unit_id'
+    'evidencia' | 'desde' | 'hasta' | 'post_id' | 'unit_id' | 'zone_id'
 >;
 
 const DEFAULT_EVIDENCIA: IncidentEvidenciaFilter = 'todos';
 const DEFAULT_PER_PAGE = 10;
 const ALL_POSTS_VALUE = 'todos';
 const ALL_UNITS_VALUE = 'todas';
+const ALL_ZONES_VALUE = 'todas';
 
 const todayIso = (): string => {
     const now = new Date();
@@ -106,7 +108,6 @@ export default function Index({
     filters,
     stats,
     reasons_catalog: reasonsCatalog,
-    posts_catalog: postsCatalog,
     units_catalog: unitsCatalog,
     unit,
 }: IncidentsIndexProps) {
@@ -114,13 +115,20 @@ export default function Index({
     const isSuperAdmin = auth.user.role === 'superadmin';
     const currentUserId = auth.user.id;
 
-    const { search, setSearch, isLoading, sort, setSort, setPerPage, applyFilter } =
-        useDataTablePage<IncidentFilterExtra>({
-            routeUrl: incidents.index().url,
-            initialFilters: filters,
-            only: ['incidents', 'filters', 'stats'],
-            errorMessage: 'No se pudo cargar el listado de incidencias.',
-        });
+    const {
+        search,
+        setSearch,
+        isLoading,
+        sort,
+        setSort,
+        setPerPage,
+        applyFilter,
+    } = useDataTablePage<IncidentFilterExtra>({
+        routeUrl: incidents.index().url,
+        initialFilters: filters,
+        only: ['incidents', 'filters', 'stats'],
+        errorMessage: 'No se pudo cargar el listado de incidencias.',
+    });
 
     const evidenciaOptions: readonly FilterChip<IncidentEvidenciaFilter>[] =
         useMemo(
@@ -131,6 +139,81 @@ export default function Index({
             ],
             [],
         );
+
+    const selectedUnit = useMemo(
+        () =>
+            unitsCatalog.find(
+                (catalogUnit) => catalogUnit.id === filters.unit_id,
+            ),
+        [unitsCatalog, filters.unit_id],
+    );
+
+    // Filtro en cascada Unidad → Zonal → Puesto: al elegir una Unidad
+    // se acotan las Zonales a las suyas, y al elegir también una
+    // Zonal se acotan los Puestos a esa combinación exacta. Sin
+    // Unidad elegida, se muestran todas las Zonales/Puestos (sin
+    // duplicados, ya que una misma Zonal puede pertenecer a varias
+    // Unidades).
+    const zoneFilterOptions = useMemo<
+        readonly IncidentZoneCatalogEntry[]
+    >(() => {
+        if (selectedUnit) {
+            return selectedUnit.zones;
+        }
+
+        // Sin Unidad elegida: una misma Zonal puede repetirse en
+        // varias Unidades, cada una con sus propios Puestos, así que
+        // se fusionan por id de zonal uniendo también sus Puestos.
+        const zoneMap = new Map<number, IncidentZoneCatalogEntry>();
+        unitsCatalog.forEach((catalogUnit) =>
+            catalogUnit.zones.forEach((zone) => {
+                const existing = zoneMap.get(zone.id);
+
+                if (!existing) {
+                    zoneMap.set(zone.id, zone);
+
+                    return;
+                }
+
+                const postMap = new Map(
+                    existing.posts.map((post) => [post.id, post]),
+                );
+                zone.posts.forEach((post) => postMap.set(post.id, post));
+                zoneMap.set(zone.id, {
+                    ...existing,
+                    posts: Array.from(postMap.values()),
+                });
+            }),
+        );
+
+        return Array.from(zoneMap.values()).sort((a, b) =>
+            a.name.localeCompare(b.name),
+        );
+    }, [selectedUnit, unitsCatalog]);
+
+    const postFilterOptions = useMemo<
+        readonly IncidentPostCatalogEntry[]
+    >(() => {
+        if (filters.zone_id) {
+            const zone = zoneFilterOptions.find(
+                (candidate) => candidate.id === filters.zone_id,
+            );
+
+            return zone?.posts ?? [];
+        }
+
+        const posts = zoneFilterOptions.flatMap((zone) => zone.posts);
+        const seen = new Map<number, IncidentPostCatalogEntry>();
+        posts.forEach((post) => {
+            if (!seen.has(post.id)) {
+                seen.set(post.id, post);
+            }
+        });
+
+        return Array.from(seen.values()).sort((a, b) =>
+            a.name.localeCompare(b.name),
+        );
+    }, [zoneFilterOptions, filters.zone_id]);
 
     const [modal, setModal] = useState<ModalState>({ type: 'idle' });
 
@@ -195,6 +278,10 @@ export default function Index({
             count += 1;
         }
 
+        if (isSuperAdmin && filters.zone_id) {
+            count += 1;
+        }
+
         return count;
     }, [
         filters.search,
@@ -205,6 +292,7 @@ export default function Index({
         filters.hasta,
         filters.post_id,
         filters.unit_id,
+        filters.zone_id,
         isSuperAdmin,
     ]);
 
@@ -235,6 +323,10 @@ export default function Index({
             params.set('unit_id', String(filters.unit_id));
         }
 
+        if (filters.zone_id) {
+            params.set('zone_id', String(filters.zone_id));
+        }
+
         const qs = params.toString();
 
         return qs.length > 0
@@ -247,6 +339,7 @@ export default function Index({
         filters.hasta,
         filters.post_id,
         filters.unit_id,
+        filters.zone_id,
     ]);
 
     const pageTitle = useMemo(() => {
@@ -551,6 +644,8 @@ export default function Index({
                                                 value === ALL_UNITS_VALUE
                                                     ? null
                                                     : Number(value),
+                                            zone_id: null,
+                                            post_id: null,
                                         })
                                     }
                                 >
@@ -575,6 +670,50 @@ export default function Index({
                                                 className="cursor-pointer"
                                             >
                                                 {catalogUnit.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+
+                            {isSuperAdmin && (
+                                <Select
+                                    value={
+                                        filters.zone_id
+                                            ? String(filters.zone_id)
+                                            : ALL_ZONES_VALUE
+                                    }
+                                    onValueChange={(value) =>
+                                        applyFilter({
+                                            zone_id:
+                                                value === ALL_ZONES_VALUE
+                                                    ? null
+                                                    : Number(value),
+                                            post_id: null,
+                                        })
+                                    }
+                                >
+                                    <SelectTrigger className="h-9 w-full min-w-44 cursor-pointer sm:w-auto">
+                                        <Layers
+                                            className="size-3.5 shrink-0 text-muted-foreground/70"
+                                            strokeWidth={2.25}
+                                        />
+                                        <SelectValue placeholder="Todas las zonales" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem
+                                            value={ALL_ZONES_VALUE}
+                                            className="cursor-pointer"
+                                        >
+                                            Todas las zonales
+                                        </SelectItem>
+                                        {zoneFilterOptions.map((zone) => (
+                                            <SelectItem
+                                                key={zone.id}
+                                                value={String(zone.id)}
+                                                className="cursor-pointer"
+                                            >
+                                                {zone.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -611,7 +750,7 @@ export default function Index({
                                         >
                                             Todos los puestos
                                         </SelectItem>
-                                        {postsCatalog.map((post) => (
+                                        {postFilterOptions.map((post) => (
                                             <SelectItem
                                                 key={post.id}
                                                 value={String(post.id)}
@@ -655,12 +794,15 @@ export default function Index({
                                 hasta: filters.hasta ?? undefined,
                                 post_id: filters.post_id ?? undefined,
                                 unit_id: filters.unit_id ?? undefined,
+                                zone_id: filters.zone_id ?? undefined,
                             }}
                         />
                     }
                     emptyState={
                         <EmptyState
-                            icon={activeFiltersCount > 0 ? Activity : ShieldAlert}
+                            icon={
+                                activeFiltersCount > 0 ? Activity : ShieldAlert
+                            }
                             title={
                                 activeFiltersCount > 0
                                     ? 'No hay coincidencias'

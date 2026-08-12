@@ -59,29 +59,6 @@ export function SuperAdminDashboard({
                 </p>
             </div>
 
-            <div className="grid auto-rows-min gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {cards.map((stat) => (
-                    <Card key={stat.title} className="border-border/60 shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between pb-0">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                {stat.title}
-                            </CardTitle>
-                            <div className="flex size-9 items-center justify-center rounded-lg bg-brand-gold-soft text-brand-gold-accent dark:bg-brand-gold/10 dark:text-brand-gold">
-                                <stat.icon className="size-4" />
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold tracking-tight">
-                                {stat.value}
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                {stat.description}
-                            </p>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
             {units.length > 0 && (
                 <Card className="border-border/60 shadow-sm">
                     <CardHeader>
@@ -129,6 +106,29 @@ export function SuperAdminDashboard({
                     </CardContent>
                 </Card>
             )}
+
+            <div className="grid auto-rows-min gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {cards.map((stat) => (
+                    <Card key={stat.title} className="border-border/60 shadow-sm">
+                        <CardHeader className="flex flex-row items-center justify-between pb-0">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">
+                                {stat.title}
+                            </CardTitle>
+                            <div className="flex size-9 items-center justify-center rounded-lg bg-brand-gold-soft text-brand-gold-accent dark:bg-brand-gold/10 dark:text-brand-gold">
+                                <stat.icon className="size-4" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-3xl font-bold tracking-tight">
+                                {stat.value}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {stat.description}
+                            </p>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
 
             <Card className="relative flex-1 overflow-hidden border-border/60 shadow-sm">
                 <CardHeader>
