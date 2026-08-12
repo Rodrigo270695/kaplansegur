@@ -1,5 +1,6 @@
-import { usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import {
+    Building2,
     ClipboardList,
     MapPinned,
     Paperclip,
@@ -8,10 +9,12 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SuperAdminDashboardProps } from '@/pages/dashboard-types';
+import incidents from '@/routes/incidents';
 import { RecentIncidentsList } from './recent-incidents-list';
 
 /** Dashboard del superadmin: panorama global de toda la operación. */
 export function SuperAdminDashboard({
+    units,
     stats,
     recent_incidents: recentIncidents,
 }: Omit<SuperAdminDashboardProps, 'role'>) {
@@ -78,6 +81,54 @@ export function SuperAdminDashboard({
                     </Card>
                 ))}
             </div>
+
+            {units.length > 0 && (
+                <Card className="border-border/60 shadow-sm">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <Building2 className="size-4 text-brand-gold-accent dark:text-brand-gold" />
+                            Unidades
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                            {units.map((unit) => (
+                                <Link
+                                    key={unit.id}
+                                    href={
+                                        incidents.index({
+                                            query: { unit_id: unit.id },
+                                        }).url
+                                    }
+                                    className="group relative flex aspect-square flex-col justify-end overflow-hidden rounded-2xl border border-border/60 bg-brand-black shadow-sm transition-all hover:shadow-lg hover:ring-2 hover:ring-brand-gold/50"
+                                >
+                                    {unit.photo_url ? (
+                                        <img
+                                            src={unit.photo_url}
+                                            alt={unit.name}
+                                            className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-brand-gold-soft dark:bg-brand-gold/10">
+                                            <Building2
+                                                className="size-12 text-brand-gold-accent dark:text-brand-gold"
+                                                strokeWidth={1.5}
+                                            />
+                                        </div>
+                                    )}
+                                    <div
+                                        aria-hidden
+                                        className="absolute inset-0 bg-linear-to-t from-black/80 via-black/10 to-transparent"
+                                    />
+                                    <span className="relative z-10 truncate p-3 text-sm font-semibold text-white">
+                                        {unit.name}
+                                    </span>
+                                </Link>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card className="relative flex-1 overflow-hidden border-border/60 shadow-sm">
                 <CardHeader>

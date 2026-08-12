@@ -28,6 +28,12 @@ export type DashboardIncident = {
     user?: DashboardIncidentReporter | null;
 };
 
+export type DashboardUnit = {
+    id: number;
+    name: string;
+    photo_url: string | null;
+};
+
 export type SuperAdminDashboardStats = {
     users: number;
     units: number;
@@ -47,6 +53,7 @@ export type AgentDashboardStats = {
 
 export type SuperAdminDashboardProps = {
     role: 'superadmin';
+    units: DashboardUnit[];
     stats: SuperAdminDashboardStats;
     recent_incidents: DashboardIncident[];
 };

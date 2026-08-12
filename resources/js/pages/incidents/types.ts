@@ -62,6 +62,8 @@ export type IncidentFilters = {
     hasta: string | null;
     /** Filtro por puesto, solo disponible para superadmin. */
     post_id: number | null;
+    /** Filtro por unidad, solo disponible para superadmin. */
+    unit_id: number | null;
 };
 
 /** Catálogo de motivos activos, para el select del formulario. */
@@ -72,6 +74,12 @@ export type ReasonCatalogEntry = {
 
 /** Catálogo de puestos activos, para el filtro de superadmin. */
 export type PostCatalogEntry = {
+    id: number;
+    name: string;
+};
+
+/** Catálogo de unidades activas, para el filtro de superadmin. */
+export type UnitCatalogEntry = {
     id: number;
     name: string;
 };

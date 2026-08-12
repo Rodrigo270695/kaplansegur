@@ -7,6 +7,7 @@ use App\Http\Requests\IncidentRequest;
 use App\Models\Incident;
 use App\Models\Post;
 use App\Models\Reason;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -92,6 +93,12 @@ class IncidentController extends Controller
                     ->orderBy('name')
                     ->get(['id', 'name'])
                 : [],
+            'units_catalog' => $isSuperAdmin
+                ? Unit::query()
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                : [],
             'unit' => $isSuperAdmin ? null : $this->resolveAgentUnit($user),
         ]);
     }
@@ -136,7 +143,7 @@ class IncidentController extends Controller
      * aplicados. La usan tanto `index()` (paginada) como `export()`
      * (completa), para no duplicar la lógica de alcance ni de filtros.
      *
-     * @return array{0: Builder<Incident>, 1: Builder<Incident>, 2: array{search: string, evidencia: string, desde: ?string, hasta: ?string, post_id: ?int}}
+     * @return array{0: Builder<Incident>, 1: Builder<Incident>, 2: array{search: string, evidencia: string, desde: ?string, hasta: ?string, post_id: ?int, unit_id: ?int}}
      */
     private function buildScopedQuery(Request $request, User $user, bool $isSuperAdmin): array
     {
@@ -158,6 +165,7 @@ class IncidentController extends Controller
         }
 
         $postId = $isSuperAdmin ? $this->parsePostId($request) : null;
+        $unitId = $isSuperAdmin ? $this->parseUnitId($request) : null;
 
         $scopedQuery = Incident::query();
         if (! $isSuperAdmin) {
@@ -168,7 +176,8 @@ class IncidentController extends Controller
             ->tap(fn (Builder $q) => $this->applySearch($q, $search))
             ->tap(fn (Builder $q) => $this->applyEvidencia($q, $evidencia))
             ->tap(fn (Builder $q) => $this->applyDateRange($q, $desde, $hasta))
-            ->tap(fn (Builder $q) => $this->applyPost($q, $postId));
+            ->tap(fn (Builder $q) => $this->applyPost($q, $postId))
+            ->tap(fn (Builder $q) => $this->applyUnit($q, $unitId));
 
         return [$scopedQuery, $query, [
             'search' => $search,
@@ -176,6 +185,7 @@ class IncidentController extends Controller
             'desde' => $desde,
             'hasta' => $hasta,
             'post_id' => $postId,
+            'unit_id' => $unitId,
         ]];
     }
 
@@ -386,6 +396,27 @@ class IncidentController extends Controller
         $query->whereHas('user', fn (Builder $u) => $u->where('post_id', $postId));
     }
 
+    /**
+     * @param  Builder<Incident>  $query
+     */
+    private function applyUnit(Builder $query, ?int $unitId): void
+    {
+        if ($unitId === null) {
+            return;
+        }
+
+        $query->whereHas(
+            'user',
+            fn (Builder $u) => $u->whereHas(
+                'post',
+                fn (Builder $p) => $p->whereHas(
+                    'unitZone',
+                    fn (Builder $uz) => $uz->where('unit_id', $unitId),
+                ),
+            ),
+        );
+    }
+
     private function parseDate(string $value): ?string
     {
         if ($value === '' || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
@@ -400,5 +431,12 @@ class IncidentController extends Controller
         $postId = $request->integer('post_id', 0);
 
         return $postId > 0 ? $postId : null;
+    }
+
+    private function parseUnitId(Request $request): ?int
+    {
+        $unitId = $request->integer('unit_id', 0);
+
+        return $unitId > 0 ? $unitId : null;
     }
 }

@@ -55,6 +55,7 @@ import type {
     IncidentStats,
     PostCatalogEntry,
     ReasonCatalogEntry,
+    UnitCatalogEntry,
 } from './types';
 
 type IncidentsIndexProps = {
@@ -63,6 +64,7 @@ type IncidentsIndexProps = {
     stats: IncidentStats;
     reasons_catalog: readonly ReasonCatalogEntry[];
     posts_catalog: readonly PostCatalogEntry[];
+    units_catalog: readonly UnitCatalogEntry[];
     unit: IncidentAgentUnit | null;
 };
 
@@ -75,12 +77,13 @@ type ModalState =
 
 type IncidentFilterExtra = Pick<
     IncidentFilters,
-    'evidencia' | 'desde' | 'hasta' | 'post_id'
+    'evidencia' | 'desde' | 'hasta' | 'post_id' | 'unit_id'
 >;
 
 const DEFAULT_EVIDENCIA: IncidentEvidenciaFilter = 'todos';
 const DEFAULT_PER_PAGE = 10;
 const ALL_POSTS_VALUE = 'todos';
+const ALL_UNITS_VALUE = 'todas';
 
 const todayIso = (): string => {
     const now = new Date();
@@ -104,6 +107,7 @@ export default function Index({
     stats,
     reasons_catalog: reasonsCatalog,
     posts_catalog: postsCatalog,
+    units_catalog: unitsCatalog,
     unit,
 }: IncidentsIndexProps) {
     const { auth } = usePage<{ auth: Auth }>().props;
@@ -187,6 +191,10 @@ export default function Index({
             count += 1;
         }
 
+        if (isSuperAdmin && filters.unit_id) {
+            count += 1;
+        }
+
         return count;
     }, [
         filters.search,
@@ -196,6 +204,7 @@ export default function Index({
         filters.desde,
         filters.hasta,
         filters.post_id,
+        filters.unit_id,
         isSuperAdmin,
     ]);
 
@@ -222,6 +231,10 @@ export default function Index({
             params.set('post_id', String(filters.post_id));
         }
 
+        if (filters.unit_id) {
+            params.set('unit_id', String(filters.unit_id));
+        }
+
         const qs = params.toString();
 
         return qs.length > 0
@@ -233,6 +246,7 @@ export default function Index({
         filters.desde,
         filters.hasta,
         filters.post_id,
+        filters.unit_id,
     ]);
 
     const pageTitle = useMemo(() => {
@@ -527,6 +541,49 @@ export default function Index({
                             {isSuperAdmin && (
                                 <Select
                                     value={
+                                        filters.unit_id
+                                            ? String(filters.unit_id)
+                                            : ALL_UNITS_VALUE
+                                    }
+                                    onValueChange={(value) =>
+                                        applyFilter({
+                                            unit_id:
+                                                value === ALL_UNITS_VALUE
+                                                    ? null
+                                                    : Number(value),
+                                        })
+                                    }
+                                >
+                                    <SelectTrigger className="h-9 w-full min-w-44 cursor-pointer sm:w-auto">
+                                        <Building2
+                                            className="size-3.5 shrink-0 text-muted-foreground/70"
+                                            strokeWidth={2.25}
+                                        />
+                                        <SelectValue placeholder="Todas las unidades" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem
+                                            value={ALL_UNITS_VALUE}
+                                            className="cursor-pointer"
+                                        >
+                                            Todas las unidades
+                                        </SelectItem>
+                                        {unitsCatalog.map((catalogUnit) => (
+                                            <SelectItem
+                                                key={catalogUnit.id}
+                                                value={String(catalogUnit.id)}
+                                                className="cursor-pointer"
+                                            >
+                                                {catalogUnit.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+
+                            {isSuperAdmin && (
+                                <Select
+                                    value={
                                         filters.post_id
                                             ? String(filters.post_id)
                                             : ALL_POSTS_VALUE
@@ -540,7 +597,7 @@ export default function Index({
                                         })
                                     }
                                 >
-                                    <SelectTrigger className="h-9 w-full min-w-[11rem] cursor-pointer sm:w-auto">
+                                    <SelectTrigger className="h-9 w-full min-w-44 cursor-pointer sm:w-auto">
                                         <MapPinned
                                             className="size-3.5 shrink-0 text-muted-foreground/70"
                                             strokeWidth={2.25}
@@ -597,6 +654,7 @@ export default function Index({
                                 desde: filters.desde ?? undefined,
                                 hasta: filters.hasta ?? undefined,
                                 post_id: filters.post_id ?? undefined,
+                                unit_id: filters.unit_id ?? undefined,
                             }}
                         />
                     }

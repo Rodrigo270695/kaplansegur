@@ -42,8 +42,19 @@ class DashboardController extends Controller
             ->limit(self::RECENT_LIMIT)
             ->get();
 
+        $units = Unit::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'photo'])
+            ->map(fn (Unit $unit) => [
+                'id' => $unit->id,
+                'name' => $unit->name,
+                'photo_url' => $unit->photo_url,
+            ]);
+
         return Inertia::render('dashboard', [
             'role' => 'superadmin',
+            'units' => $units,
             'stats' => [
                 'users' => User::query()->where('is_active', true)->count(),
                 'units' => Unit::query()->where('is_active', true)->count(),
