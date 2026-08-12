@@ -95,7 +95,7 @@ export function SuperAdminDashboard({
                                             </div>
                                         )}
                                     </div>
-                                    <span className="truncate border-t border-border/60 bg-brand-black px-3 py-2 text-center text-sm font-semibold text-white">
+                                    <span className="truncate border-t border-border/60 bg-linear-to-r from-brand-black via-brand-black to-brand-gold-accent px-3 py-2 text-center text-sm font-semibold text-white">
                                         {unit.name}
                                     </span>
                                 </Link>
